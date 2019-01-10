@@ -13,45 +13,51 @@ apt-get install -y linux-headers-$(uname -r) wireguard
 
 if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 	echo "Generating configuration"
-	: ${server_ip:='192.168.1.1/24'}
-	: ${client_ip:='192.168.1.2/24'}
 
 	: ${server:=$(curl checkip.amazonaws.com)}
 	: ${server_port:=51820}
 
+	: ${clients:=2}
+
 	wg genkey | tee /etc/wireguard/server-privatekey | wg pubkey > /etc/wireguard/server-publickey
-	wg genkey | tee /etc/wireguard/client-privatekey | wg pubkey > /etc/wireguard/client-publickey
 
 	cat > /etc/wireguard/wg0.conf <<-EOF
 	[Interface]
-	Address = $server_ip
+	Address = 192.168.99.254/24
 	PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 	PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 	ListenPort = 51820
 	PrivateKey = $(cat /etc/wireguard/server-privatekey)
-
-	[Peer]
-	PublicKey = $(cat /etc/wireguard/client-publickey)
-	AllowedIPs = $client_ip
 	EOF
 
-	cat > /etc/wireguard/client.conf <<-EOF
-	[Interface]
-	PrivateKey = $(cat /etc/wireguard/client-privatekey)
-	Address = $client_ip
-	DNS = 1.1.1.1, 1.0.0.1
+	for (( client=1; client <= $clients; client+=1 )); do
+		wg genkey | tee /etc/wireguard/client${client}-privatekey | wg pubkey > "/etc/wireguard/client${client}-publickey"
 
-	[Peer]
-	PublicKey = $(cat /etc/wireguard/server-publickey)
-	Endpoint = ${server}:${server_port}
-	AllowedIPs = 0.0.0.0/0
-	EOF
+		cat >> /etc/wireguard/wg0.conf <<-EOF
+
+		[Peer]
+		PublicKey = $(cat /etc/wireguard/client${client}-publickey)
+		AllowedIPs = 192.168.99.${client}/32
+		EOF
+
+		cat > /etc/wireguard/client${client}.conf <<-EOF
+		[Interface]
+		PrivateKey = $(cat /etc/wireguard/client${client}-privatekey)
+		Address = 192.168.99.${client}/24
+		DNS = 1.1.1.1, 1.0.0.1
+
+		[Peer]
+		PublicKey = $(cat /etc/wireguard/server-publickey)
+		Endpoint = ${server}:${server_port}
+		AllowedIPs = 0.0.0.0/0
+		EOF
+
+		echo "QR code for client ${client}:"
+		qrencode -t ansiutf8 < /etc/wireguard/client${client}.conf
+	done
 else
 	echo "Found existing configuration"
 fi
-
-echo "$(date): Client QR code:"
-qrencode -t ansiutf8 < /etc/wireguard/client.conf
 
 wg-quick up wg0
 
