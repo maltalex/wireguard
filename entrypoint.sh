@@ -9,7 +9,7 @@ on_signal () {
 
 #install on entry since wg is a kernel module
 apt-get update
-apt-get install -y linux-headers-$(uname -r) wireguard
+DEBIAN_FRONTEND=noninteractive apt-get install -y linux-headers-$(uname -r) wireguard
 
 if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 	echo "Generating configuration"
