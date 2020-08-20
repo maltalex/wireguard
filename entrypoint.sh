@@ -24,9 +24,9 @@ if [[ ! -e /etc/wireguard/wg0.conf ]]; then
 	cat > /etc/wireguard/wg0.conf <<-EOF
 	[Interface]
 	Address = 192.168.99.254/24
-	PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-	PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
-	ListenPort = 51820
+        PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+        PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+        ListenPort = 51820
 	PrivateKey = $(cat /etc/wireguard/server-privatekey)
 	EOF
 
